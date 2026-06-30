@@ -18,6 +18,7 @@ import { STORAGE_KEY } from '@/lib/constants';
 import { createSampleData } from '@/lib/sampleData';
 import { uid, todayStr, prevMonth } from '@/lib/format';
 import { splitPayment } from '@/lib/calculations';
+import { markLocalDataChanged } from '@/lib/webdavSync';
 
 interface StoreState extends AppData {
   // ---- 交易 ----
@@ -69,33 +70,45 @@ export const useStore = create<StoreState>()(
       ...sample,
 
       // ---------------- 交易 ----------------
-      addTransaction: (t) =>
+      addTransaction: (t) => {
+        markLocalDataChanged();
         set((s) => ({
           transactions: [
             { ...t, id: uid('tx_'), createdAt: new Date().toISOString() },
             ...s.transactions,
           ],
-        })),
-      updateTransaction: (id, patch) =>
+        }));
+      },
+      updateTransaction: (id, patch) => {
+        markLocalDataChanged();
         set((s) => ({
           transactions: s.transactions.map((t) =>
             t.id === id ? { ...t, ...patch } : t
           ),
-        })),
-      deleteTransaction: (id) =>
+        }));
+      },
+      deleteTransaction: (id) => {
+        markLocalDataChanged();
         set((s) => ({
           transactions: s.transactions.filter((t) => t.id !== id),
-        })),
+        }));
+      },
 
       // ---------------- 预算 ----------------
-      addBudget: (b) =>
-        set((s) => ({ budgets: [...s.budgets, { ...b, id: uid('bg_') }] })),
-      updateBudget: (id, patch) =>
+      addBudget: (b) => {
+        markLocalDataChanged();
+        set((s) => ({ budgets: [...s.budgets, { ...b, id: uid('bg_') }] }));
+      },
+      updateBudget: (id, patch) => {
+        markLocalDataChanged();
         set((s) => ({
           budgets: s.budgets.map((b) => (b.id === id ? { ...b, ...patch } : b)),
-        })),
-      deleteBudget: (id) =>
-        set((s) => ({ budgets: s.budgets.filter((b) => b.id !== id) })),
+        }));
+      },
+      deleteBudget: (id) => {
+        markLocalDataChanged();
+        set((s) => ({ budgets: s.budgets.filter((b) => b.id !== id) }));
+      },
       copyBudgetFromPrevMonth: (month) => {
         const prev = prevMonth(month);
         const state = get();
@@ -107,18 +120,27 @@ export const useStore = create<StoreState>()(
           .filter((b) => !existingCats.has(b.category))
           .map((b) => ({ ...b, id: uid('bg_'), month }));
         if (toAdd.length > 0) {
+          markLocalDataChanged();
           set((s) => ({ budgets: [...s.budgets, ...toAdd] }));
         }
         return toAdd.length;
       },
 
       // ---------------- 贷款 ----------------
-      addLoan: (l) => set((s) => ({ loans: [...s.loans, { ...l, id: uid('loan_') }] })),
-      updateLoan: (id, patch) =>
+      addLoan: (l) => {
+        markLocalDataChanged();
+        set((s) => ({ loans: [...s.loans, { ...l, id: uid('loan_') }] }));
+      },
+      updateLoan: (id, patch) => {
+        markLocalDataChanged();
         set((s) => ({
           loans: s.loans.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-        })),
-      deleteLoan: (id) => set((s) => ({ loans: s.loans.filter((l) => l.id !== id) })),
+        }));
+      },
+      deleteLoan: (id) => {
+        markLocalDataChanged();
+        set((s) => ({ loans: s.loans.filter((l) => l.id !== id) }));
+      },
       recordLoanPayment: (loanId, opts) => {
         const loan = get().loans.find((l) => l.id === loanId);
         if (!loan) return;
@@ -152,6 +174,7 @@ export const useStore = create<StoreState>()(
           createdAt: new Date().toISOString(),
         };
 
+        markLocalDataChanged();
         set((s) => ({
           loans: s.loans.map((l) =>
             l.id === loanId
@@ -168,20 +191,26 @@ export const useStore = create<StoreState>()(
       },
 
       // ---------------- 收入来源 ----------------
-      addIncomeSource: (src) =>
+      addIncomeSource: (src) => {
+        markLocalDataChanged();
         set((s) => ({
           incomeSources: [...s.incomeSources, { ...src, id: uid('inc_') }],
-        })),
-      updateIncomeSource: (id, patch) =>
+        }));
+      },
+      updateIncomeSource: (id, patch) => {
+        markLocalDataChanged();
         set((s) => ({
           incomeSources: s.incomeSources.map((i) =>
             i.id === id ? { ...i, ...patch } : i
           ),
-        })),
-      deleteIncomeSource: (id) =>
+        }));
+      },
+      deleteIncomeSource: (id) => {
+        markLocalDataChanged();
         set((s) => ({
           incomeSources: s.incomeSources.filter((i) => i.id !== id),
-        })),
+        }));
+      },
       recordIncomeArrival: (sourceId, opts) => {
         const src = get().incomeSources.find((i) => i.id === sourceId);
         if (!src) return;
@@ -208,35 +237,48 @@ export const useStore = create<StoreState>()(
           isFixed: src.isFixed,
           createdAt: new Date().toISOString(),
         };
+        markLocalDataChanged();
         set((s) => ({ transactions: [newTx, ...s.transactions] }));
       },
 
       // ---------------- 目标 ----------------
-      addGoal: (g) =>
+      addGoal: (g) => {
+        markLocalDataChanged();
         set((s) => ({
           goals: [
             ...s.goals,
             { ...g, id: uid('goal_'), createdAt: new Date().toISOString() },
           ],
-        })),
-      updateGoal: (id, patch) =>
+        }));
+      },
+      updateGoal: (id, patch) => {
+        markLocalDataChanged();
         set((s) => ({
           goals: s.goals.map((g) => (g.id === id ? { ...g, ...patch } : g)),
-        })),
-      deleteGoal: (id) => set((s) => ({ goals: s.goals.filter((g) => g.id !== id) })),
-      contributeToGoal: (id, delta) =>
+        }));
+      },
+      deleteGoal: (id) => {
+        markLocalDataChanged();
+        set((s) => ({ goals: s.goals.filter((g) => g.id !== id) }));
+      },
+      contributeToGoal: (id, delta) => {
+        markLocalDataChanged();
         set((s) => ({
           goals: s.goals.map((g) =>
             g.id === id
               ? { ...g, currentAmount: Math.max(0, g.currentAmount + delta) }
               : g
           ),
-        })),
+        }));
+      },
 
       // ---------------- 设置 & 数据管理 ----------------
-      updateSettings: (patch) =>
-        set((s) => ({ settings: { ...s.settings, ...patch } })),
-      clearAll: () =>
+      updateSettings: (patch) => {
+        markLocalDataChanged();
+        set((s) => ({ settings: { ...s.settings, ...patch } }));
+      },
+      clearAll: () => {
+        markLocalDataChanged();
         set(() => ({
           transactions: [],
           budgets: [],
@@ -244,9 +286,14 @@ export const useStore = create<StoreState>()(
           loanPayments: [],
           incomeSources: [],
           goals: [],
-        })),
-      loadSampleData: () => set(() => ({ ...createSampleData() })),
-      replaceAll: (data) =>
+        }));
+      },
+      loadSampleData: () => {
+        markLocalDataChanged();
+        set(() => ({ ...createSampleData() }));
+      },
+      replaceAll: (data) => {
+        markLocalDataChanged();
         set(() => ({
           transactions: data.transactions ?? [],
           budgets: data.budgets ?? [],
@@ -255,7 +302,8 @@ export const useStore = create<StoreState>()(
           incomeSources: data.incomeSources ?? [],
           goals: data.goals ?? [],
           settings: data.settings ?? get().settings,
-        })),
+        }));
+      },
       exportData: () => {
         const s = get();
         return {

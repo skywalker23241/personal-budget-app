@@ -2,10 +2,32 @@
  * 设置页面：偏好设置 + 数据管理（导出/导入 JSON、导出 CSV、清空、载入示例）。
  */
 import { useRef, useState } from 'react';
+import {
+  Cloud,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  Unplug,
+} from 'lucide-react';
 import type { AppData } from '@/types';
 import { useStore } from '@/store/useStore';
 import { todayStr } from '@/lib/format';
 import { TRANSACTION_TYPE_LABELS } from '@/lib/constants';
+import {
+  DEFAULT_WEBDAV_CONFIG,
+  clearWebDavConfig,
+  clearWebDavSyncMeta,
+  compareIsoTime,
+  downloadCloudSnapshot,
+  loadWebDavConfig,
+  loadWebDavSyncMeta,
+  markCloudDownloadApplied,
+  saveWebDavConfig,
+  saveWebDavSyncMeta,
+  testWebDavConnection,
+  uploadCloudSnapshot,
+  type WebDavConfig,
+} from '@/lib/webdavSync';
 import { PageHeader } from '@/components/PageHeader';
 import { Card, SectionTitle, Button, Input } from '@/components/ui';
 import { Field, SelectField } from '@/components/forms/fields';
@@ -47,6 +69,20 @@ function csvCell(v: string | number): string {
   return s;
 }
 
+function formatSyncTime(value?: string): string {
+  if (!value) return '从未';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', { hour12: false });
+}
+
+function syncResultLabel(result?: string): string {
+  if (result === 'uploaded') return '已上传';
+  if (result === 'downloaded') return '已下载';
+  if (result === 'unchanged') return '无变化';
+  return '暂无';
+}
+
 export function Settings() {
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
@@ -59,6 +95,173 @@ export function Settings() {
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [syncConfig, setSyncConfig] = useState<WebDavConfig>(() => loadWebDavConfig());
+  const [syncMeta, setSyncMeta] = useState(() => loadWebDavSyncMeta());
+  const [syncing, setSyncing] = useState<string | null>(null);
+
+  function updateSyncConfig<K extends keyof WebDavConfig>(
+    key: K,
+    value: WebDavConfig[K],
+  ) {
+    setSyncConfig((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function persistSyncConfig(): WebDavConfig {
+    const saved = saveWebDavConfig(syncConfig);
+    setSyncConfig(saved);
+    return saved;
+  }
+
+  function refreshSyncMeta() {
+    setSyncMeta(loadWebDavSyncMeta());
+  }
+
+  async function runSync(action: string, task: () => Promise<void>) {
+    setSyncing(action);
+    try {
+      await task();
+    } catch (err) {
+      toast.error('同步失败：' + (err instanceof Error ? err.message : '未知错误'));
+    } finally {
+      refreshSyncMeta();
+      setSyncing(null);
+    }
+  }
+
+  function handleSaveSyncConfig() {
+    try {
+      persistSyncConfig();
+      toast.success('WebDAV 配置已保存');
+    } catch (err) {
+      toast.error('保存失败：' + (err instanceof Error ? err.message : '未知错误'));
+    }
+  }
+
+  async function handleTestConnection() {
+    await runSync('test', async () => {
+      const config = persistSyncConfig();
+      const fileExists = await testWebDavConnection(config);
+      toast.success(fileExists ? '连接成功，已找到云端同步文件' : '连接成功，云端还没有同步文件');
+    });
+  }
+
+  async function handleUploadToCloud() {
+    const ok = await confirm({
+      title: '上传本机数据',
+      message:
+        '将用当前浏览器里的全部预算数据覆盖 WebDAV 云端同步文件。建议确认本机数据完整后再继续。',
+      danger: true,
+      confirmText: '上传覆盖',
+    });
+    if (!ok) return;
+
+    await runSync('upload', async () => {
+      const config = persistSyncConfig();
+      await uploadCloudSnapshot(config, exportData(), new Date().toISOString());
+      toast.success('已上传本机数据到 WebDAV');
+    });
+  }
+
+  async function handleDownloadFromCloud() {
+    const ok = await confirm({
+      title: '下载云端数据',
+      message:
+        '将用 WebDAV 云端同步文件覆盖当前浏览器里的全部预算数据。建议先导出 JSON 备份。',
+      danger: true,
+      confirmText: '下载覆盖',
+    });
+    if (!ok) return;
+
+    await runSync('download', async () => {
+      const config = persistSyncConfig();
+      const snapshot = await downloadCloudSnapshot(config);
+      if (!snapshot) {
+        toast.info('云端还没有同步文件');
+        return;
+      }
+      replaceAll(snapshot.data);
+      setSyncMeta(markCloudDownloadApplied(snapshot.updatedAt));
+      toast.success('已从 WebDAV 下载数据');
+    });
+  }
+
+  async function handleSmartSync() {
+    await runSync('smart', async () => {
+      const config = persistSyncConfig();
+      const snapshot = await downloadCloudSnapshot(config);
+
+      if (!snapshot) {
+        await uploadCloudSnapshot(config, exportData(), new Date().toISOString());
+        toast.success('云端无同步文件，已上传本机数据');
+        return;
+      }
+
+      const currentMeta = loadWebDavSyncMeta();
+      const localUpdatedAt = currentMeta.lastLocalChangeAt;
+
+      if (!localUpdatedAt) {
+        const ok = await confirm({
+          title: '首次同步',
+          message:
+            '云端已有同步文件，但本机没有同步历史。继续将从云端下载并覆盖本机数据；取消后可改用“上传本机数据”。',
+          danger: true,
+          confirmText: '从云端下载',
+        });
+        if (!ok) return;
+        replaceAll(snapshot.data);
+        setSyncMeta(markCloudDownloadApplied(snapshot.updatedAt));
+        toast.success('已从云端下载数据');
+        return;
+      }
+
+      const comparison = compareIsoTime(localUpdatedAt, snapshot.updatedAt);
+      if (comparison > 0) {
+        await uploadCloudSnapshot(config, exportData(), localUpdatedAt);
+        toast.success('本机数据较新，已上传到云端');
+        return;
+      }
+
+      if (comparison < 0) {
+        const ok = await confirm({
+          title: '云端数据较新',
+          message: `云端更新于 ${formatSyncTime(snapshot.updatedAt)}，本机更新于 ${formatSyncTime(
+            localUpdatedAt,
+          )}。继续将用云端数据覆盖本机。`,
+          danger: true,
+          confirmText: '下载覆盖',
+        });
+        if (!ok) return;
+        replaceAll(snapshot.data);
+        setSyncMeta(markCloudDownloadApplied(snapshot.updatedAt));
+        toast.success('云端数据较新，已下载到本机');
+        return;
+      }
+
+      saveWebDavSyncMeta({
+        ...currentMeta,
+        lastSyncAt: new Date().toISOString(),
+        lastRemoteUpdatedAt: snapshot.updatedAt,
+        lastResult: 'unchanged',
+      });
+      toast.info('本机和云端已是最新');
+    });
+  }
+
+  async function handleClearSyncConfig() {
+    const ok = await confirm({
+      title: '清除 WebDAV 配置',
+      message: '将删除当前浏览器保存的 WebDAV 地址、账号、密码和同步状态，不会删除云端文件。',
+      danger: true,
+      confirmText: '清除配置',
+    });
+    if (!ok) return;
+
+    clearWebDavConfig();
+    clearWebDavSyncMeta();
+    setSyncConfig(DEFAULT_WEBDAV_CONFIG);
+    setSyncMeta({});
+    toast.success('WebDAV 配置已清除');
+  }
 
   function handleExportJSON() {
     const data = exportData();
@@ -284,6 +487,128 @@ export function Settings() {
                 className="hidden"
                 onChange={handleImportFile}
               />
+            </div>
+          </Card>
+
+          <Card>
+            <SectionTitle
+              title="WebDAV 云同步"
+              subtitle="同步为云端 JSON 文件，适合坚果云、NAS、Nextcloud 等 WebDAV 服务"
+              action={<Cloud className="h-5 w-5 text-muted-foreground" />}
+            />
+
+            <div className="space-y-4">
+              <Field label="WebDAV 服务地址" hint="例如 https://dav.example.com/dav/">
+                <Input
+                  value={syncConfig.serverUrl}
+                  onChange={(e) => updateSyncConfig('serverUrl', e.target.value)}
+                  placeholder="https://dav.example.com/dav/"
+                  autoComplete="url"
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="用户名">
+                  <Input
+                    value={syncConfig.username}
+                    onChange={(e) => updateSyncConfig('username', e.target.value)}
+                    placeholder="WebDAV 账号"
+                    autoComplete="username"
+                  />
+                </Field>
+
+                <Field label="密码 / 应用密码">
+                  <Input
+                    type="password"
+                    value={syncConfig.password}
+                    onChange={(e) => updateSyncConfig('password', e.target.value)}
+                    placeholder="建议使用应用密码"
+                    autoComplete="current-password"
+                  />
+                </Field>
+              </div>
+
+              <Field label="云端文件路径" hint="会自动创建中间目录；同一账号多设备保持一致">
+                <Input
+                  value={syncConfig.remotePath}
+                  onChange={(e) => updateSyncConfig('remotePath', e.target.value)}
+                  placeholder="/personal-budget-app/budget-sync.json"
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={handleSaveSyncConfig}
+                  disabled={!!syncing}
+                >
+                  <Save className="h-4 w-4" />
+                  保存配置
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={handleTestConnection}
+                  disabled={!!syncing}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  {syncing === 'test' ? '测试中…' : '测试连接'}
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Button
+                  className="justify-start"
+                  onClick={handleSmartSync}
+                  disabled={!!syncing}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  {syncing === 'smart' ? '同步中…' : '智能同步'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={handleUploadToCloud}
+                  disabled={!!syncing}
+                >
+                  <IconUpload className="h-4 w-4" />
+                  {syncing === 'upload' ? '上传中…' : '上传本机'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={handleDownloadFromCloud}
+                  disabled={!!syncing}
+                >
+                  <IconDownload className="h-4 w-4" />
+                  {syncing === 'download' ? '下载中…' : '下载云端'}
+                </Button>
+              </div>
+
+              <div className="rounded-md border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+                <p>上次同步：{formatSyncTime(syncMeta.lastSyncAt)}</p>
+                <p>本机修改：{formatSyncTime(syncMeta.lastLocalChangeAt)}</p>
+                <p>云端版本：{formatSyncTime(syncMeta.lastRemoteUpdatedAt)}</p>
+                <p>最近结果：{syncResultLabel(syncMeta.lastResult)}</p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  密码只保存在当前浏览器；同步请求会通过同源 /api/webdav 代理转发到 WebDAV。
+                  本地开发服务器已内置代理，正式部署时也需要提供同名接口。
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-muted-foreground"
+                  onClick={handleClearSyncConfig}
+                  disabled={!!syncing}
+                >
+                  <Unplug className="h-4 w-4" />
+                  清除配置
+                </Button>
+              </div>
             </div>
           </Card>
 
