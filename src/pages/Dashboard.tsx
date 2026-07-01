@@ -2,6 +2,7 @@
  * 首页仪表盘：核心财务数据、图表、最近记录、提醒、健康评分。
  */
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import {
   totalIncome,
@@ -28,11 +29,12 @@ import {
 import { TRANSACTION_TYPE_LABELS } from '@/lib/constants';
 import { PageHeader } from '@/components/PageHeader';
 import { MonthPicker } from '@/components/MonthPicker';
-import { StatCard, Card, SectionTitle, Badge, Button } from '@/components/ui';
+import { StatCard, Card, SectionTitle, Badge, Button, ProgressBar } from '@/components/ui';
 import { CategoryDonut, IncomeExpenseTrend } from '@/components/charts';
 import { ReminderList } from '@/components/ReminderList';
-import { Modal } from '@/components/Modal';
-import { TransactionForm } from '@/components/forms/TransactionForm';
+import { QuickTransactionModal } from '@/components/QuickTransactionModal';
+import { MobileCollapsibleSection } from '@/components/MobileCollapsibleSection';
+import { cn } from '@/lib/utils';
 import {
   IconPlus,
   IconArrowUp,
@@ -76,6 +78,16 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
+function daysRemainingInMonth(month: string): number {
+  const [year, monthIndex] = month.split('-').map(Number);
+  const today = new Date();
+  const isCurrent =
+    today.getFullYear() === year && today.getMonth() + 1 === monthIndex;
+  const totalDays = new Date(year, monthIndex, 0).getDate();
+  if (!isCurrent) return totalDays;
+  return Math.max(1, totalDays - today.getDate() + 1);
+}
+
 export function Dashboard() {
   const [month, setMonth] = useState(currentMonth());
   const [showAdd, setShowAdd] = useState(false);
@@ -97,6 +109,12 @@ export function Dashboard() {
     const bSummary = budgetSummary(budgets, transactions, month, warnRate);
     const bList = budgetsWithUsage(budgets, transactions, month, warnRate);
     const overBudget = bList.filter((b) => b.status === 'exceeded');
+    const budgetWatch = bList
+      .filter((b) => b.status !== 'normal')
+      .sort((a, b) => b.usageRate - a.usageRate)
+      .slice(0, 3);
+    const dailyAvailable =
+      bSummary.total > 0 ? Math.max(0, bSummary.remaining) / daysRemainingInMonth(month) : 0;
     const loanRemaining = totalRemainingPrincipal(loans);
     const monthRepayment = transactionsInMonth(transactions, month)
       .filter((t) => t.type === 'loan_repayment')
@@ -151,6 +169,8 @@ export function Dashboard() {
       balance,
       rate,
       bSummary,
+      budgetWatch,
+      dailyAvailable,
       loanRemaining,
       monthRepayment,
       pieData,
@@ -180,8 +200,110 @@ export function Dashboard() {
         }
       />
 
+      <Card className="mb-4 overflow-hidden bg-foreground text-background">
+        <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr] lg:items-end">
+          <div>
+            <p className="text-sm text-background/65">
+              {isCurrentMonth ? '本月还可支配' : `${month} 预算回看`}
+            </p>
+            <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-2">
+              <p className="text-4xl font-semibold tracking-tight sm:text-5xl">
+                {formatCurrency(Math.max(0, data.bSummary.remaining), cur)}
+              </p>
+              <p className="pb-1 text-sm text-background/70">
+                {data.bSummary.total > 0
+                  ? `日均可花 ${formatCurrency(data.dailyAvailable, cur)}`
+                  : '还没有设置本月预算'}
+              </p>
+            </div>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-background/70">
+              {data.bSummary.total <= 0
+                ? '先给常用分类设置预算，首页就能给出每日可花额度和风险提醒。'
+                : data.bSummary.remaining < 0
+                  ? '本月预算已经超支，建议先暂停非必要消费，并复盘超支分类。'
+                  : data.budgetWatch.length > 0
+                    ? `${data.budgetWatch[0].category} 已接近预算上限，今天记账时可以优先关注这类支出。`
+                    : '预算执行平稳，可以按当前节奏继续消费。'}
+            </p>
+          </div>
+
+          <div className="rounded-md border border-white/10 bg-white/8 p-4">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="text-background/70">预算使用率</span>
+              <span className="font-semibold text-background">
+                {formatPercent(data.bSummary.usageRate)}
+              </span>
+            </div>
+            <ProgressBar
+              value={data.bSummary.usageRate}
+              tone={
+                data.bSummary.usageRate >= 1
+                  ? 'rose'
+                  : data.bSummary.usageRate >= warnRate
+                    ? 'amber'
+                    : 'emerald'
+              }
+              className="bg-white/15"
+            />
+            <div className="mt-4 space-y-2">
+              {data.budgetWatch.length > 0 ? (
+                data.budgetWatch.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between text-xs">
+                    <span className="text-background/70">{item.category}</span>
+                    <span className="font-medium text-background">
+                      {formatPercent(item.usageRate)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-background/65">暂无超支或预警分类</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <div className="mb-4 grid grid-cols-2 gap-3 md:hidden">
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">本月收入</p>
+          <p className="mt-1 text-xl font-semibold text-success">
+            {formatCurrency(data.income, cur)}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">本月支出</p>
+          <p className="mt-1 text-xl font-semibold text-destructive">
+            {formatCurrency(data.expense, cur)}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">本月结余</p>
+          <p
+            className={cn(
+              'mt-1 text-xl font-semibold',
+              data.balance >= 0 ? 'text-foreground' : 'text-destructive',
+            )}
+          >
+            {formatCurrency(data.balance, cur)}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">储蓄率</p>
+          <p
+            className={cn(
+              'mt-1 text-xl font-semibold',
+              data.rate >= settings.savingsRateTarget / 100
+                ? 'text-success'
+                : 'text-warning',
+            )}
+          >
+            {formatPercent(data.rate)}
+          </p>
+        </Card>
+      </div>
+
       {/* 核心数据卡片 */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="hidden grid-cols-2 gap-3 sm:gap-4 md:grid lg:grid-cols-4">
         <StatCard
           label="本月总收入"
           value={formatCurrency(data.income, cur)}
@@ -235,79 +357,11 @@ export function Dashboard() {
         />
       </div>
 
-      {/* 图表区 */}
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <SectionTitle title="最近 7 天收支趋势" />
-          <IncomeExpenseTrend data={data.trend} currency={cur} />
-        </Card>
-        <Card>
-          <SectionTitle title="本月支出分类" />
-          <CategoryDonut data={data.pieData} currency={cur} />
-        </Card>
-      </div>
-
-      {/* 健康评分 + 提醒 */}
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <SectionTitle title="财务健康评分" />
-          <div className="flex items-center gap-4">
-            <ScoreRing score={data.health.score} />
-            <div className="min-w-0 flex-1">
-              <Badge
-                tone={
-                  data.health.grade === '优秀'
-                    ? 'emerald'
-                    : data.health.grade === '良好'
-                      ? 'brand'
-                      : data.health.grade === '一般'
-                        ? 'amber'
-                        : 'rose'
-                }
-              >
-                <IconHeart className="h-3 w-3" />
-                {data.health.grade}
-              </Badge>
-              <ul className="mt-3 space-y-1.5">
-                {data.health.factors.map((f) => (
-                  <li key={f.label} className="flex items-center gap-2 text-xs">
-                    <span
-                      className={`inline-block h-1.5 w-1.5 rounded-full ${
-                        f.ok ? 'bg-success' : 'bg-destructive'
-                      }`}
-                    />
-                    <span className="text-muted-foreground">{f.label}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <SectionTitle title="超预算提醒" />
-          <ReminderList
-            reminders={data.budgetReminders}
-            emptyText="预算执行良好，暂无超支"
-            max={4}
-          />
-        </Card>
-
-        <Card>
-          <SectionTitle title="贷款还款提醒" />
-          <ReminderList
-            reminders={data.loanReminders}
-            emptyText="近期没有待还款提醒"
-            max={4}
-          />
-        </Card>
-      </div>
-
       {/* 最近记录 */}
       <Card className="mt-4">
         <SectionTitle
           title="最近记录"
-          subtitle={isCurrentMonth ? '最新 10 条收支' : '最新 10 条收支（不限月份）'}
+          subtitle={isCurrentMonth ? '最新收支' : '最新收支（不限月份）'}
         />
         {data.recent.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
@@ -315,10 +369,16 @@ export function Dashboard() {
           </p>
         ) : (
           <ul className="divide-y divide-border">
-            {data.recent.map((t) => {
+            {data.recent.map((t, index) => {
               const isIncome = t.type === 'income';
               return (
-                <li key={t.id} className="flex items-center gap-3 py-2.5">
+                <li
+                  key={t.id}
+                  className={cn(
+                    'flex items-center gap-3 py-2.5',
+                    index >= 5 && 'hidden md:flex',
+                  )}
+                >
                   <span
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
                       isIncome ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
@@ -352,11 +412,94 @@ export function Dashboard() {
             })}
           </ul>
         )}
+        {data.recent.length > 5 && (
+          <Button variant="outline" className="mt-3 w-full md:hidden" asChild>
+            <Link to="/transactions">查看更多账单</Link>
+          </Button>
+        )}
       </Card>
 
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="新增记录">
-        <TransactionForm onClose={() => setShowAdd(false)} />
-      </Modal>
+      {/* 图表区 */}
+      <MobileCollapsibleSection
+        className="mt-4"
+        title="统计详情"
+        subtitle="趋势、分类和完整数据"
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <SectionTitle title="最近 7 天收支趋势" />
+            <IncomeExpenseTrend data={data.trend} currency={cur} />
+          </Card>
+          <Card>
+            <SectionTitle title="本月支出分类" />
+            <CategoryDonut data={data.pieData} currency={cur} />
+          </Card>
+        </div>
+      </MobileCollapsibleSection>
+
+      {/* 健康评分 + 提醒 */}
+      <MobileCollapsibleSection
+        className="mt-4"
+        title="财务提醒"
+        subtitle={`健康评分 ${data.health.score}，预算/还款提醒按需查看`}
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card>
+            <SectionTitle title="财务健康评分" />
+            <div className="flex items-center gap-4">
+              <ScoreRing score={data.health.score} />
+              <div className="min-w-0 flex-1">
+                <Badge
+                  tone={
+                    data.health.grade === '优秀'
+                      ? 'emerald'
+                      : data.health.grade === '良好'
+                        ? 'brand'
+                        : data.health.grade === '一般'
+                          ? 'amber'
+                          : 'rose'
+                  }
+                >
+                  <IconHeart className="h-3 w-3" />
+                  {data.health.grade}
+                </Badge>
+                <ul className="mt-3 space-y-1.5">
+                  {data.health.factors.map((f) => (
+                    <li key={f.label} className="flex items-center gap-2 text-xs">
+                      <span
+                        className={`inline-block h-1.5 w-1.5 rounded-full ${
+                          f.ok ? 'bg-success' : 'bg-destructive'
+                        }`}
+                      />
+                      <span className="text-muted-foreground">{f.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <SectionTitle title="超预算提醒" />
+            <ReminderList
+              reminders={data.budgetReminders}
+              emptyText="预算执行良好，暂无超支"
+              max={4}
+            />
+          </Card>
+
+          <Card>
+            <SectionTitle title="贷款还款提醒" />
+            <ReminderList
+              reminders={data.loanReminders}
+              emptyText="近期没有待还款提醒"
+              max={4}
+            />
+          </Card>
+        </div>
+      </MobileCollapsibleSection>
+
+      <QuickTransactionModal open={showAdd} onClose={() => setShowAdd(false)} />
     </>
   );
 }

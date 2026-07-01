@@ -7,12 +7,14 @@ import { useStore } from '@/store/useStore';
 import { budgetsWithUsage, budgetSummary } from '@/lib/calculations';
 import { currentMonth, formatCurrency, formatPercent, prevMonth, formatMonthLabel } from '@/lib/format';
 import { PageHeader } from '@/components/PageHeader';
+import { AppSummaryCard } from '@/components/AppSummaryCard';
 import { MonthPicker } from '@/components/MonthPicker';
 import { StatCard, Card, ProgressBar, Badge, EmptyState, Button } from '@/components/ui';
 import { Modal } from '@/components/Modal';
 import { BudgetForm } from '@/components/forms/BudgetForm';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/Toast';
+import { cn } from '@/lib/utils';
 import { IconPlus, IconWallet, IconEdit, IconTrash, IconDownload } from '@/components/Icons';
 
 const STATUS_META = {
@@ -25,6 +27,7 @@ export function BudgetPage() {
   const [month, setMonth] = useState(currentMonth());
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Budget | null>(null);
+  const [showAllMobileBudgets, setShowAllMobileBudgets] = useState(false);
 
   const budgets = useStore((s) => s.budgets);
   const transactions = useStore((s) => s.transactions);
@@ -49,6 +52,24 @@ export function BudgetPage() {
     [list]
   );
   const existingCategories = list.map((b) => b.category);
+  const riskiestBudget = sorted[0];
+  const mobileBudgetHighlights = useMemo(() => {
+    const risky = sorted.filter((b) => b.status !== 'normal');
+    return risky.length > 0 ? risky : sorted.slice(0, 3);
+  }, [sorted]);
+  const mobileBudgetHighlightIds = new Set(mobileBudgetHighlights.map((b) => b.id));
+  const hiddenMobileBudgetCount = Math.max(
+    0,
+    sorted.length - mobileBudgetHighlights.length,
+  );
+  const summaryAccent =
+    summary.usageRate >= 1
+      ? 'danger'
+      : summary.usageRate >= warnRate
+        ? 'warning'
+        : summary.total > 0
+          ? 'success'
+          : 'default';
 
   function openAdd() {
     setEditing(null);
@@ -96,8 +117,39 @@ export function BudgetPage() {
         }
       />
 
+      <AppSummaryCard
+        eyebrow={formatMonthLabel(month)}
+        title={
+          summary.total === 0
+            ? '本月预算'
+            : summary.remaining >= 0
+              ? '本月还可花'
+              : '本月已超支'
+        }
+        value={
+          summary.total === 0
+            ? '未设置'
+            : formatCurrency(Math.abs(summary.remaining), cur)
+        }
+        subtitle={
+          summary.total === 0
+            ? '先添加几个高频分类预算，后续每天打开就能看到消费节奏。'
+            : riskiestBudget
+              ? `${riskiestBudget.category} 使用率最高，当前为 ${formatPercent(
+                  riskiestBudget.usageRate,
+                )}。`
+              : '本月预算节奏稳定。'
+        }
+        accent={summaryAccent}
+        meta={[
+          { label: '总预算', value: formatCurrency(summary.total, cur) },
+          { label: '已使用', value: formatCurrency(summary.used, cur) },
+          { label: '使用率', value: formatPercent(summary.usageRate) },
+        ]}
+      />
+
       {/* 总览 */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="本月总预算"
           value={formatCurrency(summary.total, cur)}
@@ -175,7 +227,12 @@ export function BudgetPage() {
               return (
                 <Card
                   key={b.id}
-                  className={b.status === 'exceeded' ? 'ring-1 ring-destructive/30' : ''}
+                  className={cn(
+                    b.status === 'exceeded' && 'ring-1 ring-destructive/30',
+                    !showAllMobileBudgets &&
+                      !mobileBudgetHighlightIds.has(b.id) &&
+                      'hidden md:block',
+                  )}
                 >
                   <div className="flex items-start justify-between">
                     <div>
@@ -232,6 +289,17 @@ export function BudgetPage() {
               );
             })}
           </div>
+        )}
+        {sorted.length > 0 && hiddenMobileBudgetCount > 0 && (
+          <Button
+            variant="outline"
+            className="mt-3 w-full md:hidden"
+            onClick={() => setShowAllMobileBudgets((value) => !value)}
+          >
+            {showAllMobileBudgets
+              ? '收起普通分类'
+              : `展开其余 ${hiddenMobileBudgetCount} 个分类`}
+          </Button>
         )}
       </div>
 

@@ -66,6 +66,15 @@ export interface BudgetWithUsage extends Budget {
 // ---------- 贷款 ----------
 
 export type LoanType = '房贷' | '车贷' | '消费贷' | '信用卡分期' | '其他';
+export type LoanPlatform =
+  | '银行'
+  | '花呗'
+  | '京东白条'
+  | '微信分付'
+  | '美团月付'
+  | '抖音月付'
+  | '信用卡'
+  | '其他';
 
 export interface Loan {
   id: string;
@@ -73,6 +82,8 @@ export interface Loan {
   name: string;
   /** 贷款类型 */
   type: LoanType;
+  /** 借贷/分期平台 */
+  platform?: LoanPlatform;
   /** 初始本金 */
   principal: number;
   /** 当前剩余本金 */

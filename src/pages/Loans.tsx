@@ -22,6 +22,8 @@ import {
   todayStr,
 } from '@/lib/format';
 import { PageHeader } from '@/components/PageHeader';
+import { AppSummaryCard } from '@/components/AppSummaryCard';
+import { MobileCollapsibleSection } from '@/components/MobileCollapsibleSection';
 import { Card, StatCard, ProgressBar, Badge, EmptyState, Button } from '@/components/ui';
 import { Modal } from '@/components/Modal';
 import { LoanForm } from '@/components/forms/LoanForm';
@@ -56,6 +58,18 @@ export function Loans() {
   const totalRemaining = totalRemainingPrincipal(loans);
   const totalMonthly = totalMonthlyRepayment(loans);
   const ratio = loanToIncomeRatio(loans, monthIncome);
+  const activeLoans = loans.filter((l) => l.remainingPrincipal > 0);
+  const nextRepayment = activeLoans
+    .map((loan) => ({ loan, days: daysUntilRepaymentDay(loan.repaymentDay) }))
+    .sort((a, b) => a.days - b.days)[0];
+  const debtAccent =
+    ratio > 0.4
+      ? 'danger'
+      : ratio > 0.25
+        ? 'warning'
+        : totalRemaining > 0
+          ? 'info'
+          : 'success';
 
   function openAdd() {
     setEditing(null);
@@ -109,27 +123,57 @@ export function Loans() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <StatCard
-          label="总剩余本金"
-          value={formatCurrency(totalRemaining, cur)}
-          icon={<IconBank className="h-4 w-4" />}
-          tone="brand"
-        />
-        <StatCard
-          label="每月总还款"
-          value={formatCurrency(totalMonthly, cur)}
-          tone="expense"
-        />
-        <StatCard
-          label="还款占收入比"
-          value={monthIncome > 0 ? formatPercent(ratio) : '—'}
-          tone={ratio > 0.4 ? 'expense' : ratio > 0 ? 'warning' : 'default'}
-          hint={
-            monthIncome > 0 ? '建议控制在 40% 以内' : '本月暂无收入记录，无法计算'
-          }
-        />
-      </div>
+      <AppSummaryCard
+        eyebrow={formatMonthLabel(currentMonth())}
+        title={totalRemaining > 0 ? '总待还本金' : '贷款状态'}
+        value={totalRemaining > 0 ? formatCurrency(totalRemaining, cur) : '已结清'}
+        subtitle={
+          nextRepayment
+            ? `最近还款：${nextRepayment.loan.name}，${
+                nextRepayment.days === 0 ? '今天到期' : `${nextRepayment.days} 天后到期`
+              }。`
+            : loans.length > 0
+              ? '当前贷款都已结清，可以保留历史记录用于复盘。'
+              : '添加花呗、白条、分付、房贷或其他贷款后，这里会展示还款压力。'
+        }
+        accent={debtAccent}
+        meta={[
+          { label: '每月总还款', value: formatCurrency(totalMonthly, cur) },
+          {
+            label: '还款占收入',
+            value: monthIncome > 0 ? formatPercent(ratio) : '待记录收入',
+          },
+          { label: '未结清贷款', value: `${activeLoans.length} 笔` },
+        ]}
+      />
+
+      <MobileCollapsibleSection
+        className="mt-4"
+        title="贷款概览"
+        subtitle={`月还款 ${formatCurrency(totalMonthly, cur)}，未结清 ${activeLoans.length} 笔`}
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+          <StatCard
+            label="总剩余本金"
+            value={formatCurrency(totalRemaining, cur)}
+            icon={<IconBank className="h-4 w-4" />}
+            tone="brand"
+          />
+          <StatCard
+            label="每月总还款"
+            value={formatCurrency(totalMonthly, cur)}
+            tone="expense"
+          />
+          <StatCard
+            label="还款占收入比"
+            value={monthIncome > 0 ? formatPercent(ratio) : '—'}
+            tone={ratio > 0.4 ? 'expense' : ratio > 0 ? 'warning' : 'default'}
+            hint={
+              monthIncome > 0 ? '建议控制在 40% 以内' : '本月暂无收入记录，无法计算'
+            }
+          />
+        </div>
+      </MobileCollapsibleSection>
 
       <div className="mt-4">
         {loans.length === 0 ? (
@@ -158,6 +202,7 @@ export function Loans() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-foreground">{l.name}</span>
+                        <Badge tone="slate">{l.platform ?? '未设置平台'}</Badge>
                         <Badge tone="blue">{l.type}</Badge>
                         {paidOff && <Badge tone="emerald">已结清</Badge>}
                       </div>

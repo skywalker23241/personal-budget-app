@@ -18,10 +18,13 @@ import {
   currentMonth,
   addMonths,
   formatCurrency,
+  formatPercent,
   formatMonthLabel,
   monthOf,
 } from '@/lib/format';
 import { PageHeader } from '@/components/PageHeader';
+import { AppSummaryCard } from '@/components/AppSummaryCard';
+import { MobileCollapsibleSection } from '@/components/MobileCollapsibleSection';
 import { Card, StatCard, SectionTitle, Badge, EmptyState, Button } from '@/components/ui';
 import { CategoryDonut, useChartTheme } from '@/components/charts';
 import { Modal } from '@/components/Modal';
@@ -135,7 +138,26 @@ export function Income() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+      <AppSummaryCard
+        eyebrow={formatMonthLabel(month)}
+        title="本月已到账收入"
+        value={formatCurrency(stats.total, cur)}
+        subtitle={
+          stats.total > 0
+            ? `固定收入占 ${formatPercent(stats.fixed / stats.total)}，最近一笔为 ${
+                stats.arrivals[0]?.category ?? '收入'
+              }。`
+            : '添加工资、副业或投资收入来源后，可以一键记录到账。'
+        }
+        accent={stats.total > 0 ? 'success' : 'default'}
+        meta={[
+          { label: '固定收入', value: formatCurrency(stats.fixed, cur) },
+          { label: '非固定收入', value: formatCurrency(stats.variable, cur) },
+          { label: '收入来源', value: `${incomeSources.length} 个` },
+        ]}
+      />
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard
           label={`${formatMonthLabel(month)}总收入`}
           value={formatCurrency(stats.total, cur)}
@@ -151,61 +173,73 @@ export function Income() {
       </div>
 
       {/* 图表 */}
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <SectionTitle title="近 6 个月收入趋势" />
-          {stats.trend.some((t) => t.income > 0) ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart
-                data={stats.trend}
-                margin={{ top: 10, right: 8, left: -12, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="gIncomeTrend" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={chart.income} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={chart.income} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 11, fill: chart.axis }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: chart.axis }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={48}
-                />
-                <Tooltip
-                  contentStyle={chart.tooltip}
-                  formatter={(v: number) => [formatCurrency(v, cur), '收入']}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="income"
-                  stroke={chart.income}
-                  strokeWidth={2}
-                  fill="url(#gIncomeTrend)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
-              暂无收入数据
-            </div>
-          )}
-        </Card>
-        <Card>
-          <SectionTitle title="本月收入来源占比" />
-          <CategoryDonut data={stats.pie} currency={cur} />
-        </Card>
-      </div>
+      <MobileCollapsibleSection
+        className="mt-4"
+        title="收入统计"
+        subtitle="趋势和来源占比"
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <SectionTitle title="近 6 个月收入趋势" />
+            {stats.trend.some((t) => t.income > 0) ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart
+                  data={stats.trend}
+                  margin={{ top: 10, right: 8, left: -12, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="gIncomeTrend" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={chart.income} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={chart.income} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: chart.axis }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: chart.axis }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                  />
+                  <Tooltip
+                    contentStyle={chart.tooltip}
+                    formatter={(v: number) => [formatCurrency(v, cur), '收入']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="income"
+                    stroke={chart.income}
+                    strokeWidth={2}
+                    fill="url(#gIncomeTrend)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
+                暂无收入数据
+              </div>
+            )}
+          </Card>
+          <Card>
+            <SectionTitle title="本月收入来源占比" />
+            <CategoryDonut data={stats.pie} currency={cur} />
+          </Card>
+        </div>
+      </MobileCollapsibleSection>
 
       {/* 收入来源 + 到账记录 */}
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <MobileCollapsibleSection
+        className="mt-4"
+        title="收入来源与到账"
+        subtitle={`${incomeSources.length} 个来源，最近 ${stats.arrivals.length} 条到账`}
+        defaultOpen
+      >
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <SectionTitle title="收入来源" subtitle="点击「到账」快速记一笔收入" />
           {incomeSources.length === 0 ? (
@@ -299,6 +333,7 @@ export function Income() {
           )}
         </Card>
       </div>
+      </MobileCollapsibleSection>
 
       <Modal
         open={showForm}

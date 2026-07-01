@@ -4,6 +4,7 @@
 import type {
   IncomeType,
   LoanType,
+  LoanPlatform,
   GoalType,
   PaymentMethod,
   TransactionType,
@@ -61,6 +62,18 @@ export const INCOME_TYPES: IncomeType[] = ['工资', '奖金', '副业', '投资
 
 /** 贷款类型 */
 export const LOAN_TYPES: LoanType[] = ['房贷', '车贷', '消费贷', '信用卡分期', '其他'];
+
+/** 借贷/分期平台 */
+export const LOAN_PLATFORMS: LoanPlatform[] = [
+  '银行',
+  '花呗',
+  '京东白条',
+  '微信分付',
+  '美团月付',
+  '抖音月付',
+  '信用卡',
+  '其他',
+];
 
 /** 目标类型 */
 export const GOAL_TYPES: GoalType[] = [

@@ -13,6 +13,8 @@ import {
 } from '@/lib/calculations';
 import { formatCurrency, formatPercent, safeNumber, addMonths, currentMonth, formatMonthLabel } from '@/lib/format';
 import { PageHeader } from '@/components/PageHeader';
+import { AppSummaryCard } from '@/components/AppSummaryCard';
+import { MobileCollapsibleSection } from '@/components/MobileCollapsibleSection';
 import { Card, StatCard, ProgressBar, Badge, EmptyState, Button, Input } from '@/components/ui';
 import { Modal } from '@/components/Modal';
 import { GoalForm } from '@/components/forms/GoalForm';
@@ -121,6 +123,8 @@ export function Goals() {
     const suggested = goals.reduce((s, g) => s + goalSuggestedMonthly(g), 0);
     return { target, saved, suggested, progress: target > 0 ? saved / target : 0 };
   }, [goals]);
+  const completedGoals = goals.filter((g) => goalStatus(g) === 'completed').length;
+  const behindGoals = goals.filter((g) => goalStatus(g) === 'behind').length;
 
   function openAdd() {
     setEditing(null);
@@ -156,27 +160,66 @@ export function Goals() {
         }
       />
 
+      <AppSummaryCard
+        eyebrow="目标进度"
+        title={goals.length > 0 ? '已积累金额' : '还没有目标'}
+        value={goals.length > 0 ? formatCurrency(summary.saved, cur) : '先定一个'}
+        subtitle={
+          goals.length === 0
+            ? '可以从应急金、旅行、买房首付、提前还款这类目标开始。'
+            : behindGoals > 0
+              ? `${behindGoals} 个目标进度落后，建议优先调整月投入或截止时间。`
+              : `整体完成 ${formatPercent(summary.progress)}，本月建议投入 ${formatCurrency(
+                  summary.suggested,
+                  cur,
+                )}。`
+        }
+        accent={
+          summary.progress >= 1
+            ? 'success'
+            : behindGoals > 0
+              ? 'warning'
+              : goals.length > 0
+                ? 'info'
+                : 'default'
+        }
+        meta={[
+          { label: '目标总额', value: formatCurrency(summary.target, cur) },
+          { label: '本月建议', value: formatCurrency(summary.suggested, cur) },
+          { label: '已完成', value: `${completedGoals} 个` },
+        ]}
+      />
+
       {goals.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <StatCard
-            label="目标总数"
-            value={goals.length}
-            icon={<IconTarget className="h-4 w-4" />}
-            tone="brand"
-          />
-          <StatCard label="目标总额" value={formatCurrency(summary.target, cur)} />
-          <StatCard
-            label="已积累"
-            value={formatCurrency(summary.saved, cur)}
-            tone="income"
-            hint={`总进度 ${formatPercent(summary.progress)}`}
-          />
-          <StatCard
-            label="本月建议投入"
-            value={formatCurrency(summary.suggested, cur)}
-            tone="warning"
-          />
-        </div>
+        <MobileCollapsibleSection
+          className="mt-4"
+          title="目标概览"
+          subtitle={`总进度 ${formatPercent(summary.progress)}，本月建议 ${formatCurrency(
+            summary.suggested,
+            cur,
+          )}`}
+        >
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <StatCard
+              label="目标总数"
+              value={goals.length}
+              icon={<IconTarget className="h-4 w-4" />}
+              tone="brand"
+            />
+            <StatCard label="目标总额" value={formatCurrency(summary.target, cur)} />
+            <StatCard
+              label="已积累"
+              value={formatCurrency(summary.saved, cur)}
+              tone="income"
+              hint={`总进度 ${formatPercent(summary.progress)}`}
+            />
+            <StatCard
+              label="本月建议投入"
+              value={formatCurrency(summary.suggested, cur)}
+              tone="warning"
+            />
+          </div>
+        </MobileCollapsibleSection>
       )}
 
       <div className="mt-4">

@@ -239,6 +239,7 @@ export function createSampleData(): AppData {
         id: carLoanId,
         name: '我的车贷',
         type: '车贷',
+        platform: '银行',
         principal: 150000,
         remainingPrincipal: 96000,
         annualRate: 4.9,

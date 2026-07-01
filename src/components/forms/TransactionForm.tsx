@@ -14,6 +14,7 @@ import { useStore } from '@/store/useStore';
 import { useToast } from '../Toast';
 import { Button, Input } from '@/components/ui';
 import { Field, SegmentedControl, Toggle, SelectField } from './fields';
+import { InlineDisclosure } from '@/components/MobileCollapsibleSection';
 
 interface Props {
   initial?: Transaction;
@@ -143,20 +144,26 @@ export function TransactionForm({ initial, defaultType, onClose }: Props) {
         </Field>
       </div>
 
-      <Field label="备注">
-        <Input
-          type="text"
-          placeholder="可选，如：和朋友聚餐"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          maxLength={100}
-        />
-      </Field>
+      <InlineDisclosure
+        title="高级选项"
+        subtitle="备注、预算归属和固定收支"
+        defaultOpen={isEdit}
+      >
+        <Field label="备注">
+          <Input
+            type="text"
+            placeholder="可选，如：和朋友聚餐"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={100}
+          />
+        </Field>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Toggle checked={countInBudget} onChange={setCountInBudget} label="计入预算" />
-        <Toggle checked={isFixed} onChange={setIsFixed} label="固定收支" />
-      </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Toggle checked={countInBudget} onChange={setCountInBudget} label="计入预算" />
+          <Toggle checked={isFixed} onChange={setIsFixed} label="固定收支" />
+        </div>
+      </InlineDisclosure>
 
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onClose}>

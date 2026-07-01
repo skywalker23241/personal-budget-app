@@ -79,7 +79,7 @@ export function StatCard({
     brand: 'bg-secondary text-secondary-foreground',
   };
   return (
-    <CardPrimitive className="p-4 sm:p-5">
+    <CardPrimitive className="app-enter p-4 sm:p-5">
       <div className="flex items-start justify-between">
         <p className="text-sm text-muted-foreground">{label}</p>
         {icon && (

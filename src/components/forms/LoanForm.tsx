@@ -2,8 +2,8 @@
  * 贷款表单：新增 / 编辑贷款。
  */
 import { useState } from 'react';
-import type { Loan, LoanType } from '@/types';
-import { LOAN_TYPES } from '@/lib/constants';
+import type { Loan, LoanPlatform, LoanType } from '@/types';
+import { LOAN_PLATFORMS, LOAN_TYPES } from '@/lib/constants';
 import { safeNumber, todayStr, clamp } from '@/lib/format';
 import { useStore } from '@/store/useStore';
 import { useToast } from '../Toast';
@@ -15,6 +15,21 @@ interface Props {
   onClose: () => void;
 }
 
+const PLATFORM_DEFAULTS: Partial<
+  Record<LoanPlatform, { name: string; type: LoanType; annualRate: string }>
+> = {
+  花呗: { name: '花呗', type: '消费贷', annualRate: '0' },
+  京东白条: { name: '京东白条', type: '消费贷', annualRate: '0' },
+  微信分付: { name: '微信分付', type: '消费贷', annualRate: '0' },
+  美团月付: { name: '美团月付', type: '消费贷', annualRate: '0' },
+  抖音月付: { name: '抖音月付', type: '消费贷', annualRate: '0' },
+  信用卡: { name: '信用卡分期', type: '信用卡分期', annualRate: '0' },
+};
+
+const AUTO_FILLED_NAMES = new Set(
+  Object.values(PLATFORM_DEFAULTS).map((item) => item.name),
+);
+
 export function LoanForm({ initial, onClose }: Props) {
   const addLoan = useStore((s) => s.addLoan);
   const updateLoan = useStore((s) => s.updateLoan);
@@ -22,6 +37,7 @@ export function LoanForm({ initial, onClose }: Props) {
   const isEdit = !!initial;
 
   const [name, setName] = useState(initial?.name ?? '');
+  const [platform, setPlatform] = useState<LoanPlatform>(initial?.platform ?? '银行');
   const [type, setType] = useState<LoanType>(initial?.type ?? '房贷');
   const [principal, setPrincipal] = useState(initial ? String(initial.principal) : '');
   const [remaining, setRemaining] = useState(
@@ -47,6 +63,20 @@ export function LoanForm({ initial, onClose }: Props) {
   const [note, setNote] = useState(initial?.note ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  function handlePlatformChange(nextPlatform: LoanPlatform) {
+    const defaults = PLATFORM_DEFAULTS[nextPlatform];
+    setPlatform(nextPlatform);
+    if (!defaults) return;
+
+    setType(defaults.type);
+    if (!name.trim() || AUTO_FILLED_NAMES.has(name.trim())) {
+      setName(defaults.name);
+    }
+    if (!isEdit && (!annualRate.trim() || annualRate === '4.9')) {
+      setAnnualRate(defaults.annualRate);
+    }
+  }
+
   function validate(): boolean {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = '请输入贷款名称';
@@ -67,6 +97,7 @@ export function LoanForm({ initial, onClose }: Props) {
     const payload = {
       name: name.trim(),
       type,
+      platform,
       principal: safeNumber(principal),
       remainingPrincipal: safeNumber(remaining || principal),
       annualRate: safeNumber(annualRate),
@@ -98,6 +129,16 @@ export function LoanForm({ initial, onClose }: Props) {
             onChange={(e) => setName(e.target.value)}
           />
         </Field>
+        <Field label="借贷平台" required>
+          <SelectField
+            value={platform}
+            onChange={(v) => handlePlatformChange(v as LoanPlatform)}
+            options={LOAN_PLATFORMS}
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <Field label="贷款类型" required>
           <SelectField
             value={type}
