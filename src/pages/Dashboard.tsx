@@ -414,7 +414,7 @@ export function Dashboard() {
         )}
         {data.recent.length > 5 && (
           <Button variant="outline" className="mt-3 w-full md:hidden" asChild>
-            <Link to="/transactions">查看更多账单</Link>
+            <Link to="/app/transactions">查看更多账单</Link>
           </Button>
         )}
       </Card>

@@ -21,21 +21,21 @@ import { QuickTransactionModal } from './QuickTransactionModal';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS: { to: string; label: string; icon: (p: any) => ReactNode }[] = [
-  { to: '/', label: '仪表盘', icon: IconDashboard },
-  { to: '/transactions', label: '记账', icon: IconReceipt },
-  { to: '/budget', label: '预算', icon: IconWallet },
-  { to: '/loans', label: '贷款', icon: IconBank },
-  { to: '/income', label: '收入', icon: IconCoins },
-  { to: '/reports', label: '报表', icon: IconChart },
-  { to: '/goals', label: '目标', icon: IconTarget },
-  { to: '/settings', label: '设置', icon: IconSettings },
+  { to: '/app', label: '仪表盘', icon: IconDashboard },
+  { to: '/app/transactions', label: '记账', icon: IconReceipt },
+  { to: '/app/budget', label: '预算', icon: IconWallet },
+  { to: '/app/loans', label: '贷款', icon: IconBank },
+  { to: '/app/income', label: '收入', icon: IconCoins },
+  { to: '/app/reports', label: '报表', icon: IconChart },
+  { to: '/app/goals', label: '目标', icon: IconTarget },
+  { to: '/app/settings', label: '设置', icon: IconSettings },
 ];
 
 const MOBILE_NAV_ITEMS: { to: string; label: string; icon: (p: any) => ReactNode }[] = [
-  { to: '/', label: '首页', icon: IconDashboard },
-  { to: '/transactions', label: '账单', icon: IconReceipt },
-  { to: '/budget', label: '预算', icon: IconWallet },
-  { to: '/settings', label: '设置', icon: IconSettings },
+  { to: '/app', label: '首页', icon: IconDashboard },
+  { to: '/app/transactions', label: '账单', icon: IconReceipt },
+  { to: '/app/budget', label: '预算', icon: IconWallet },
+  { to: '/app/settings', label: '设置', icon: IconSettings },
 ];
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
@@ -45,7 +45,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
         <NavLink
           key={to}
           to={to}
-          end={to === '/'}
+          end={to === '/app'}
           onClick={onNavigate}
           className={({ isActive }) =>
             cn(
@@ -150,7 +150,7 @@ export function Layout() {
             <NavLink
               key={to}
               to={to}
-              end={to === '/'}
+              end={to === '/app'}
               className={({ isActive }) =>
                 cn(
                   'app-press flex flex-col items-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-medium',
