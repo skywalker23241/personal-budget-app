@@ -37,6 +37,7 @@ import { Card, SectionTitle, Button, Input } from '@/components/ui';
 import { Field, SelectField } from '@/components/forms/fields';
 import { ThemeSegmented } from '@/components/ThemeToggle';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { useSecurityConfirm } from '@/components/SecurityConfirmDialog';
 import { useToast } from '@/components/Toast';
 import {
   IconDownload,
@@ -150,6 +151,7 @@ export function Settings() {
   const incomeSources = useStore((s) => s.incomeSources);
   const goals = useStore((s) => s.goals);
   const confirm = useConfirm();
+  const { securityConfirm, securityConfirmDialog } = useSecurityConfirm();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -209,11 +211,10 @@ export function Settings() {
   }
 
   async function handleUploadToCloud() {
-    const ok = await confirm({
-      title: '上传本机数据',
+    const ok = await securityConfirm({
+      title: '安全同步确认：上传本机数据',
       message:
         '将用当前浏览器里的全部预算数据覆盖 WebDAV 云端同步文件。建议确认本机数据完整后再继续。',
-      danger: true,
       confirmText: '上传覆盖',
     });
     if (!ok) return;
@@ -226,11 +227,10 @@ export function Settings() {
   }
 
   async function handleDownloadFromCloud() {
-    const ok = await confirm({
-      title: '下载云端数据',
+    const ok = await securityConfirm({
+      title: '安全同步确认：下载云端数据',
       message:
         '将用 WebDAV 云端同步文件覆盖当前浏览器里的全部预算数据。建议先导出 JSON 备份。',
-      danger: true,
       confirmText: '下载覆盖',
     });
     if (!ok) return;
@@ -263,11 +263,10 @@ export function Settings() {
       const localUpdatedAt = currentMeta.lastLocalChangeAt;
 
       if (!localUpdatedAt) {
-        const ok = await confirm({
-          title: '首次同步',
+        const ok = await securityConfirm({
+          title: '安全同步确认：首次同步',
           message:
             '云端已有同步文件，但本机没有同步历史。继续将从云端下载并覆盖本机数据；取消后可改用“上传本机数据”。',
-          danger: true,
           confirmText: '从云端下载',
         });
         if (!ok) return;
@@ -285,12 +284,11 @@ export function Settings() {
       }
 
       if (comparison < 0) {
-        const ok = await confirm({
-          title: '云端数据较新',
+        const ok = await securityConfirm({
+          title: '安全同步确认：云端数据较新',
           message: `云端更新于 ${formatSyncTime(snapshot.updatedAt)}，本机更新于 ${formatSyncTime(
             localUpdatedAt,
           )}。继续将用云端数据覆盖本机。`,
-          danger: true,
           confirmText: '下载覆盖',
         });
         if (!ok) return;
@@ -442,6 +440,7 @@ export function Settings() {
 
   return (
     <>
+      {securityConfirmDialog}
       <PageHeader title="设置" subtitle="偏好设置与数据管理" />
 
       <AppSummaryCard
@@ -693,6 +692,7 @@ export function Settings() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   密码只保存在当前浏览器；同步请求会通过同源 /api/webdav 代理转发到 WebDAV。
+                  上传或下载覆盖数据前需要输入一次性确认码（安全同步确认）。
                   本地开发服务器已内置代理，正式部署时也需要提供同名接口。
                 </p>
                 <Button

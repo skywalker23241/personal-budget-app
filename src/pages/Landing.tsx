@@ -76,7 +76,7 @@ const cnyFormat = {
 const commandItems = [
   { label: '记一笔餐饮支出', detail: '自动进入快速记账' },
   { label: '查看本月预算', detail: '跳转到预算执行面板' },
-  { label: '同步 WebDAV 备份', detail: '生成加密快照' },
+  { label: '同步 WebDAV 备份', detail: '比对本机与云端版本后同步' },
   { label: '导出年度报表', detail: '下载 CSV 与图表摘要' },
   { label: '检查贷款提醒', detail: '筛出 7 天内到期还款' },
 ];
@@ -84,7 +84,7 @@ const commandItems = [
 const featureCards = [
   {
     title: '本地优先的数据底座',
-    copy: '默认保存在浏览器本地，需要时再启用 WebDAV 加密同步。',
+    copy: '默认保存在浏览器本地，也可通过 WebDAV 同步到坚果云、NAS、Nextcloud 等自己的服务。',
     icon: ShieldCheck,
   },
   {
@@ -189,7 +189,7 @@ function AnimatedPercent({
 
 function LandingHeader({ onCommandOpen }: { onCommandOpen: () => void }) {
   return (
-    <header className="relative z-20 border-b border-border/70 bg-background/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-2.5" aria-label="个人预算记账助手">
           <img src="/logo.svg" alt="" className="h-9 w-9 rounded-xl shadow-sm" />
@@ -229,68 +229,68 @@ function LandingHeader({ onCommandOpen }: { onCommandOpen: () => void }) {
 }
 
 function HeroBackdrop() {
-  const { resolvedTheme } = useTheme();
-  const { points, value } = useLiveBudgetSeries();
-
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
       <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.35)_1px,transparent_1px)] bg-[size:44px_44px]" />
       <div className="absolute inset-0 bg-background/65" />
+    </div>
+  );
+}
 
-      <div className="absolute bottom-[-4rem] right-[-7rem] hidden w-[56rem] rotate-[-3deg] lg:block">
-        <div className="rounded-lg border bg-card/95 p-4 shadow-2xl shadow-foreground/10">
-          <div className="mb-4 flex items-center justify-between border-b pb-3">
-            <div>
-              <p className="text-xs text-muted-foreground">本月现金流</p>
-              <AnimatedCurrency value={value} className="text-3xl font-semibold text-foreground" />
+function HeroChartCard() {
+  const { resolvedTheme } = useTheme();
+  const { points, value } = useLiveBudgetSeries();
+
+  return (
+    <div className="rounded-lg border bg-card/95 p-4 shadow-xl shadow-foreground/5 backdrop-blur">
+      <div className="mb-4 flex items-center justify-between border-b pb-3">
+        <div>
+          <p className="text-xs text-muted-foreground">本月现金流</p>
+          <AnimatedCurrency value={value} className="text-2xl font-semibold text-foreground" />
+        </div>
+        <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs text-success">
+          <span className="h-2 w-2 rounded-full bg-success" />
+          实时更新
+        </div>
+      </div>
+      <div className="h-56 overflow-hidden rounded-lg border bg-background">
+        <Liveline
+          data={points}
+          value={value}
+          color="#10b981"
+          theme={resolvedTheme}
+          badge
+          showValue
+          grid
+          fill
+          pulse
+          window={95}
+          formatValue={(v) =>
+            new Intl.NumberFormat('zh-CN', {
+              style: 'currency',
+              currency: 'CNY',
+              maximumFractionDigits: 0,
+            }).format(v)
+          }
+        />
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        {initialBudgets.slice(0, 3).map((item) => (
+          <div key={item.id} className="rounded-lg border bg-background p-3">
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className="font-medium text-foreground">{item.label}</span>
+              <span className="text-muted-foreground">
+                {Math.round((item.spent / item.amount) * 100)}%
+              </span>
             </div>
-            <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs text-success">
-              <span className="h-2 w-2 rounded-full bg-success" />
-              实时更新
-            </div>
-          </div>
-          <div className="grid grid-cols-[1fr_15rem] gap-4">
-            <div className="h-72 overflow-hidden rounded-lg border bg-background">
-              <Liveline
-                data={points}
-                value={value}
-                color="#10b981"
-                theme={resolvedTheme}
-                badge
-                showValue
-                grid
-                fill
-                pulse
-                window={95}
-                formatValue={(v) =>
-                  new Intl.NumberFormat('zh-CN', {
-                    style: 'currency',
-                    currency: 'CNY',
-                    maximumFractionDigits: 0,
-                  }).format(v)
-                }
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn('h-full rounded-full', item.tone)}
+                style={{ width: `${Math.min(100, (item.spent / item.amount) * 100)}%` }}
               />
             </div>
-            <div className="space-y-3">
-              {initialBudgets.slice(0, 3).map((item) => (
-                <div key={item.id} className="rounded-lg border bg-background p-3">
-                  <div className="mb-2 flex items-center justify-between text-xs">
-                    <span className="font-medium text-foreground">{item.label}</span>
-                    <span className="text-muted-foreground">
-                      {Math.round((item.spent / item.amount) * 100)}%
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn('h-full rounded-full', item.tone)}
-                      style={{ width: `${Math.min(100, (item.spent / item.amount) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -298,12 +298,11 @@ function HeroBackdrop() {
 
 function HeroSection({ onCommandOpen }: { onCommandOpen: () => void }) {
   return (
-    <section className="relative isolate min-h-[82svh] overflow-hidden border-b">
+    <section className="relative isolate overflow-hidden border-b">
       <HeroBackdrop />
-      <LandingHeader onCommandOpen={onCommandOpen} />
 
-      <div className="relative z-10 mx-auto flex max-w-7xl flex-col px-4 pb-12 pt-12 sm:px-6 lg:px-8 lg:pb-20 lg:pt-20">
-        <div className="max-w-3xl">
+      <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-10 px-4 pb-14 pt-12 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:gap-14 lg:px-8 lg:pb-24 lg:pt-20">
+        <div>
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border bg-background/85 px-3 py-1 text-sm text-muted-foreground shadow-sm backdrop-blur">
             <Sparkles className="h-4 w-4 text-warning" />
             预算、账单、贷款和目标放进同一个节奏里
@@ -327,21 +326,25 @@ function HeroSection({ onCommandOpen }: { onCommandOpen: () => void }) {
               打开命令中心
             </Button>
           </div>
+
+          <div className="mt-8 grid grid-cols-3 gap-2 sm:mt-10 sm:gap-3">
+            <div className="rounded-lg border bg-background/85 p-3 shadow-sm backdrop-blur sm:p-4">
+              <p className="text-[11px] text-muted-foreground sm:text-xs">本月剩余</p>
+              <AnimatedCurrency value={6820} className="mt-1 block text-xl font-semibold sm:text-2xl" />
+            </div>
+            <div className="rounded-lg border bg-background/85 p-3 shadow-sm backdrop-blur sm:p-4">
+              <p className="text-[11px] text-muted-foreground sm:text-xs">储蓄率</p>
+              <AnimatedPercent value={28} className="mt-1 block text-xl font-semibold sm:text-2xl" />
+            </div>
+            <div className="rounded-lg border bg-background/85 p-3 shadow-sm backdrop-blur sm:p-4">
+              <p className="text-[11px] text-muted-foreground sm:text-xs">到期提醒</p>
+              <NumberFlow value={3} className="mt-1 block text-xl font-semibold sm:text-2xl" willChange />
+            </div>
+          </div>
         </div>
 
-        <div className="mt-8 grid max-w-4xl grid-cols-3 gap-2 sm:mt-10 sm:gap-3">
-          <div className="rounded-lg border bg-background/85 p-3 shadow-sm backdrop-blur sm:p-4">
-            <p className="text-[11px] text-muted-foreground sm:text-xs">本月剩余</p>
-            <AnimatedCurrency value={6820} className="mt-1 block text-xl font-semibold sm:text-2xl" />
-          </div>
-          <div className="rounded-lg border bg-background/85 p-3 shadow-sm backdrop-blur sm:p-4">
-            <p className="text-[11px] text-muted-foreground sm:text-xs">储蓄率</p>
-            <AnimatedPercent value={28} className="mt-1 block text-xl font-semibold sm:text-2xl" />
-          </div>
-          <div className="rounded-lg border bg-background/85 p-3 shadow-sm backdrop-blur sm:p-4">
-            <p className="text-[11px] text-muted-foreground sm:text-xs">到期提醒</p>
-            <NumberFlow value={3} className="mt-1 block text-xl font-semibold sm:text-2xl" willChange />
-          </div>
+        <div className="hidden lg:block">
+          <HeroChartCard />
         </div>
       </div>
     </section>
@@ -440,9 +443,10 @@ function SecurityPanel() {
     <div className="rounded-lg border bg-card p-5 shadow-sm">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-foreground">安全同步确认</p>
+          <p className="text-sm font-semibold text-foreground">WebDAV 安全同步确认</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            高风险操作需要一次性密码，避免误导出或覆盖备份。
+            账本可同步到坚果云、NAS、Nextcloud 等 WebDAV 服务；
+            覆盖本机或云端数据前，需要输入一次性确认码，避免误操作。
           </p>
         </div>
         <LockKeyhole className="h-5 w-5 text-muted-foreground" />
@@ -456,8 +460,8 @@ function SecurityPanel() {
         placeholder="000000"
         containerClassName="group flex items-center"
         onComplete={() =>
-          toast.success('验证通过', {
-            description: '预算快照已准备加密同步。',
+          toast.success('确认码验证通过', {
+            description: '可以安全执行上传或下载覆盖了。',
           })
         }
         render={({ slots }) => (
@@ -474,11 +478,15 @@ function SecurityPanel() {
       <div className="mt-5 grid gap-2 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <Check className="h-4 w-4 text-success" />
-          备份文件加密后再上传
+          智能同步自动比对本机与云端版本
         </div>
         <div className="flex items-center gap-2">
           <Check className="h-4 w-4 text-success" />
-          本地账本不会被第三方读取
+          上传、下载覆盖前必须输入一次性确认码
+        </div>
+        <div className="flex items-center gap-2">
+          <Check className="h-4 w-4 text-success" />
+          WebDAV 密码只保存在当前浏览器
         </div>
       </div>
 
@@ -904,6 +912,7 @@ export function Landing() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <LandingHeader onCommandOpen={() => setCommandOpen(true)} />
       <HeroSection onCommandOpen={() => setCommandOpen(true)} />
       <LiveOverview />
       <WorkflowSection />
