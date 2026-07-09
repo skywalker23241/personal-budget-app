@@ -1,0 +1,5 @@
+# TODO: 将 YOUR-DOMAIN.netlify.app 替换为实际生产域名
+User-agent: *
+Allow: /
+
+Sitemap: https://budget.abohack.com/sitemap.xml
